@@ -1,0 +1,18 @@
+server:
+  listen: 80
+  server_name: example.com
+  root: /var/www/html
+  
+  location /:
+    try_files: $uri $uri/ /index.html
+    
+  location /api:
+    proxy_pass: http://backend:8080
+    proxy_set_header:
+      Host: $host
+      X-Real-IP: $remote_addr
+      
+  ssl:
+    enabled: false
+    certificate: /etc/nginx/ssl/cert.pem
+    certificate_key: /etc/nginx/ssl/key.pem 
