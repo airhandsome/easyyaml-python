@@ -4,13 +4,15 @@ from PyQt6.QtWidgets import (QMainWindow, QToolBar, QMenuBar,
                              QDialog, QLabel, QLineEdit, QDialogButtonBox,
                              QPushButton, QHBoxLayout, QCompleter, QTreeWidget, QTreeWidgetItem,
                              QPlainTextEdit, QSplitter, QStackedWidget)
-from PyQt6.QtCore import Qt, QStringListModel, QTimer
-from PyQt6.QtGui import QKeySequence, QShortcut, QAction
+from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint
+from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QImage, QPainter, QPen, QColor, QPolygon, QActionGroup, \
+    QTextDocument, QTextCursor
 import os
 import json
 import shutil
 from .editor_widget import YamlEditorWidget
 from .yaml_editor_widget import YamlEditorWidget
+from .dialogs import FindDialog, ReplaceDialog
 
 class SearchComboBox(QComboBox):
     def __init__(self, parent=None):
@@ -551,6 +553,187 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("EasyYAML Editor")
         self.setGeometry(100, 100, 800, 600)
         
+        # 设置应用样式
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f5f5f5;
+            }
+            
+            QTabWidget::pane {
+                border: 1px solid #cccccc;
+                background: white;
+                border-radius: 3px;
+            }
+            
+            QTabBar::tab {
+                background: #e1e1e1;
+                border: 1px solid #cccccc;
+                padding: 6px 12px;
+                margin-right: 2px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            
+            QTabBar::tab:selected {
+                background: white;
+                border-bottom-color: white;
+            }
+            
+            QTabBar::tab:hover {
+                background: #f0f0f0;
+            }
+            
+            QTabBar::close-button {
+                image: url(resources/close.png);
+                subcontrol-position: right;
+                margin: 2px;
+            }
+            
+            QTabBar::close-button:hover {
+                background: #ff4444;
+                border-radius: 2px;
+            }
+            
+            QComboBox {
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                padding: 4px 8px;
+                background: white;
+                min-height: 24px;
+            }
+            
+            QComboBox:hover {
+                border-color: #999999;
+            }
+            
+            QComboBox:focus {
+                border-color: #0078d4;
+            }
+            
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            
+            QComboBox::down-arrow {
+                image: url(resources/down-arrow.png);
+                width: 12px;
+                height: 12px;
+            }
+            
+            QTreeWidget {
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                background: white;
+            }
+            
+            QTreeWidget::item {
+                height: 24px;
+            }
+            
+            QTreeWidget::item:hover {
+                background: #f0f0f0;
+            }
+            
+            QTreeWidget::item:selected {
+                background: #e5f3ff;
+                color: black;
+            }
+            
+            QPlainTextEdit {
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                background: white;
+                font-family: "Consolas", "Monaco", monospace;
+                font-size: 12px;
+                padding: 4px;
+            }
+            
+            QPushButton {
+                background: #0078d4;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 3px;
+                min-width: 80px;
+            }
+            
+            QPushButton:hover {
+                background: #106ebe;
+            }
+            
+            QPushButton:pressed {
+                background: #005a9e;
+            }
+            
+            QMenuBar {
+                background: white;
+                border-bottom: 1px solid #cccccc;
+            }
+            
+            QMenuBar::item {
+                padding: 6px 10px;
+                background: transparent;
+            }
+            
+            QMenuBar::item:selected {
+                background: #e5f3ff;
+            }
+            
+            QMenu {
+                background: white;
+                border: 1px solid #cccccc;
+            }
+            
+            QMenu::item {
+                padding: 6px 20px;
+            }
+            
+            QMenu::item:selected {
+                background: #e5f3ff;
+            }
+            
+            QToolBar {
+                background: white;
+                border-bottom: 1px solid #cccccc;
+                spacing: 6px;
+                padding: 3px;
+            }
+            
+            QStatusBar {
+                background: white;
+                border-top: 1px solid #cccccc;
+            }
+            
+            QDialog {
+                background: white;
+            }
+            
+            QLabel {
+                color: #333333;
+            }
+            
+            QLineEdit {
+                border: 1px solid #cccccc;
+                border-radius: 3px;
+                padding: 4px;
+                background: white;
+            }
+            
+            QLineEdit:focus {
+                border-color: #0078d4;
+            }
+        """)
+        
+        # 创建资源目录
+        os.makedirs("resources", exist_ok=True)
+        
+        # 创建关闭按钮图标
+        self.create_close_icon()
+        
+        # 创建下拉箭头图标
+        self.create_arrow_icon()
+        
         # 初始化模板目录
         self.template_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
         self.user_template_dir = os.path.join(
@@ -730,14 +913,135 @@ class MainWindow(QMainWindow):
         close_action.triggered.connect(lambda: self.close_tab(self.tab_widget.currentIndex()))
         file_menu.addAction(close_action)
         
+        # 模板菜单
+        template_menu = menubar.addMenu('模板')
+        
+        manage_templates_action = QAction('管理模板', self)
+        manage_templates_action.triggered.connect(self.manage_templates)
+        template_menu.addAction(manage_templates_action)
+        
+        add_template_action = QAction('添加当前文件为模板', self)
+        add_template_action.triggered.connect(self.add_current_as_template)
+        template_menu.addAction(add_template_action)
+        
         # 编辑菜单
         edit_menu = menubar.addMenu('编辑')
+        
+        undo_action = QAction('撤销', self)
+        undo_action.setShortcut('Ctrl+Z')
+        undo_action.triggered.connect(self.undo)
+        edit_menu.addAction(undo_action)
+        
+        redo_action = QAction('重做', self)
+        redo_action.setShortcut('Ctrl+Y')
+        redo_action.triggered.connect(self.redo)
+        edit_menu.addAction(redo_action)
+        
+        edit_menu.addSeparator()
+        
+        cut_action = QAction('剪切', self)
+        cut_action.setShortcut('Ctrl+X')
+        cut_action.triggered.connect(self.cut)
+        edit_menu.addAction(cut_action)
+        
+        copy_action = QAction('复制', self)
+        copy_action.setShortcut('Ctrl+C')
+        copy_action.triggered.connect(self.copy)
+        edit_menu.addAction(copy_action)
+        
+        paste_action = QAction('粘贴', self)
+        paste_action.setShortcut('Ctrl+V')
+        paste_action.triggered.connect(self.paste)
+        edit_menu.addAction(paste_action)
+        
+        edit_menu.addSeparator()
+        
+        find_action = QAction('查找', self)
+        find_action.setShortcut('Ctrl+F')
+        find_action.triggered.connect(self.show_find_dialog)
+        edit_menu.addAction(find_action)
+        
+        replace_action = QAction('替换', self)
+        replace_action.setShortcut('Ctrl+H')
+        replace_action.triggered.connect(self.show_replace_dialog)
+        edit_menu.addAction(replace_action)
         
         # 视图菜单
         view_menu = menubar.addMenu('视图')
         
+        theme_menu = view_menu.addMenu('主题')
+        self.theme_group = QActionGroup(self)
+        
+        # 添加主题选项
+        themes = {
+            '浅色': """
+                QMainWindow { background-color: #f5f5f5; }
+                QPlainTextEdit { background-color: white; color: black; }
+            """,
+            '深色': """
+                QMainWindow { background-color: #2d2d2d; }
+                QPlainTextEdit { 
+                    background-color: #1e1e1e; 
+                    color: #d4d4d4;
+                    selection-background-color: #264f78;
+                }
+                QTreeWidget {
+                    background-color: #1e1e1e;
+                    color: #d4d4d4;
+                }
+                QLabel { color: #d4d4d4; }
+                QMenuBar {
+                    background-color: #2d2d2d;
+                    color: #d4d4d4;
+                }
+                QMenuBar::item:selected { background-color: #3e3e3e; }
+                QMenu {
+                    background-color: #2d2d2d;
+                    color: #d4d4d4;
+                }
+                QMenu::item:selected { background-color: #3e3e3e; }
+            """
+        }
+        
+        for theme_name, theme_style in themes.items():
+            action = QAction(theme_name, self)
+            action.setCheckable(True)
+            action.setData(theme_style)
+            self.theme_group.addAction(action)
+            theme_menu.addAction(action)
+            action.triggered.connect(self.change_theme)
+        
+        # 默认选中浅色主题
+        self.theme_group.actions()[0].setChecked(True)
+        
+        view_menu.addSeparator()
+        
+        zoom_in_action = QAction('放大', self)
+        zoom_in_action.setShortcut('Ctrl++')
+        zoom_in_action.triggered.connect(self.zoom_in)
+        view_menu.addAction(zoom_in_action)
+        
+        zoom_out_action = QAction('缩小', self)
+        zoom_out_action.setShortcut('Ctrl+-')
+        zoom_out_action.triggered.connect(self.zoom_out)
+        view_menu.addAction(zoom_out_action)
+        
+        reset_zoom_action = QAction('重置缩放', self)
+        reset_zoom_action.setShortcut('Ctrl+0')
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        view_menu.addAction(reset_zoom_action)
+        
         # 帮助菜单
         help_menu = menubar.addMenu('帮助')
+        
+        about_action = QAction('关于', self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+        
+        help_action = QAction('使用帮助', self)
+        help_action.setShortcut('F1')
+        help_action.triggered.connect(self.show_help)
+        help_menu.addAction(help_action)
     
     def create_toolbar(self):
         toolbar = QToolBar()
@@ -891,6 +1195,105 @@ class MainWindow(QMainWindow):
         """打开模板管理对话框"""
         dialog = ManageTemplatesDialog(self)
         dialog.exec()
+        # 刷新模板列表
+        self.load_templates()
+    
+    def add_current_as_template(self):
+        """将当前文件添加为模板"""
+        current_editor = self.tab_widget.currentWidget()
+        if not current_editor:
+            QMessageBox.warning(self, "警告", "没有打开的文件")
+            return
+        
+        # 获取当前文件名（如果有）
+        current_name = self.tab_widget.tabText(self.tab_widget.currentIndex())
+        if current_name.startswith("新建"):
+            current_name = ""
+        
+        # 创建添加模板对话框
+        dialog = QDialog(self)
+        dialog.setWindowTitle("添加为模板")
+        layout = QVBoxLayout(dialog)
+        
+        # 模板名称输入
+        name_layout = QHBoxLayout()
+        name_layout.addWidget(QLabel("模板名称:"))
+        name_edit = QLineEdit()
+        name_edit.setText(current_name.replace(".yaml", "").replace(".yml", ""))
+        name_layout.addWidget(name_edit)
+        layout.addLayout(name_layout)
+        
+        # 模板分类选择/输入
+        category_layout = QHBoxLayout()
+        category_layout.addWidget(QLabel("分类:"))
+        category_combo = QComboBox()
+        category_combo.setEditable(True)
+        # 添加现有分类
+        categories = set()
+        for template_info in self.user_templates.values():
+            for category in template_info.keys():
+                categories.add(category)
+        category_combo.addItems(sorted(categories))
+        category_layout.addWidget(category_combo)
+        layout.addLayout(category_layout)
+        
+        # 描述输入
+        desc_layout = QHBoxLayout()
+        desc_layout.addWidget(QLabel("描述:"))
+        desc_edit = QLineEdit()
+        desc_layout.addWidget(desc_edit)
+        layout.addLayout(desc_layout)
+        
+        # 按钮
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | 
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                # 获取输入
+                template_name = name_edit.text().strip()
+                category = category_combo.currentText().strip()
+                description = desc_edit.text().strip()
+                
+                if not template_name or not category:
+                    raise ValueError("模板名称和分类不能为空")
+                
+                # 创建分类目录
+                category_dir = os.path.join(self.user_template_dir, category)
+                os.makedirs(category_dir, exist_ok=True)
+                
+                # 保存模板文件
+                template_path = os.path.join(category_dir, f"{template_name}.yaml")
+                if os.path.exists(template_path):
+                    raise ValueError("该模板名称已存在")
+                
+                with open(template_path, 'w', encoding='utf-8') as f:
+                    f.write(current_editor.toPlainText())
+                
+                # 更新配置
+                if category not in self.user_templates:
+                    self.user_templates[category] = {}
+                
+                self.user_templates[category][template_name] = {
+                    'path': os.path.relpath(template_path, self.user_template_dir),
+                    'description': description
+                }
+                
+                # 保存配置
+                self.save_user_template_config()
+                
+                # 刷新模板列表
+                self.load_templates()
+                
+                QMessageBox.information(self, "成功", "模板添加成功")
+                
+            except Exception as e:
+                QMessageBox.critical(self, "错误", f"添加模板失败: {str(e)}")
     
     def load_templates(self):
         """异步加载所有模板"""
@@ -1049,3 +1452,279 @@ class MainWindow(QMainWindow):
                 )
             except Exception as e:
                 QMessageBox.critical(self, "错误", f"无法保存文件: {str(e)}")
+    
+    def create_close_icon(self):
+        """创建关闭按钮图标"""
+        if not os.path.exists("resources/close.png"):
+            # 创建一个 12x12 的透明图片
+            image = QImage(12, 12, QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            
+            # 创建画笔
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # 设置画笔
+            pen = QPen(QColor("#666666"))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            
+            # 绘制 X
+            painter.drawLine(3, 3, 9, 9)
+            painter.drawLine(9, 3, 3, 9)
+            
+            painter.end()
+            
+            # 保存图片
+            image.save("resources/close.png")
+    
+    def create_arrow_icon(self):
+        """创建下拉箭头图标"""
+        if not os.path.exists("resources/down-arrow.png"):
+            # 创建一个 12x12 的透明图片
+            image = QImage(12, 12, QImage.Format.Format_ARGB32)
+            image.fill(Qt.GlobalColor.transparent)
+            
+            # 创建画笔
+            painter = QPainter(image)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            
+            # 设置画笔
+            pen = QPen(QColor("#666666"))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            
+            # 绘制箭头
+            points = [QPoint(2, 4), QPoint(6, 8), QPoint(10, 4)]
+            painter.drawPolyline(QPolygon(points))
+            
+            painter.end()
+            
+            # 保存图片
+            image.save("resources/down-arrow.png")
+    
+    def undo(self):
+        """撤销"""
+        current_editor = self.get_current_editor()
+        if current_editor:
+            if isinstance(current_editor, SwitchableEditor):
+                if current_editor.stack.currentWidget() == current_editor.text_editor:
+                    current_editor.text_editor.undo()
+    
+    def redo(self):
+        """重做"""
+        current_editor = self.get_current_editor()
+        if current_editor:
+            if isinstance(current_editor, SwitchableEditor):
+                if current_editor.stack.currentWidget() == current_editor.text_editor:
+                    current_editor.text_editor.redo()
+    
+    def cut(self):
+        """剪切"""
+        current_editor = self.get_current_editor()
+        if current_editor:
+            if isinstance(current_editor, SwitchableEditor):
+                if current_editor.stack.currentWidget() == current_editor.text_editor:
+                    current_editor.text_editor.cut()
+    
+    def copy(self):
+        """复制"""
+        current_editor = self.get_current_editor()
+        if current_editor:
+            if isinstance(current_editor, SwitchableEditor):
+                if current_editor.stack.currentWidget() == current_editor.text_editor:
+                    current_editor.text_editor.copy()
+    
+    def paste(self):
+        """粘贴"""
+        current_editor = self.get_current_editor()
+        if current_editor:
+            if isinstance(current_editor, SwitchableEditor):
+                if current_editor.stack.currentWidget() == current_editor.text_editor:
+                    current_editor.text_editor.paste()
+    
+    def show_find_dialog(self):
+        """显示查找对话框"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            if not hasattr(self, 'find_dialog'):
+                self.find_dialog = FindDialog(self)
+                self.find_dialog.findNext.connect(self.find_text)
+            
+            # 获取选中的文本作为查找内容
+            cursor = current_editor.text_editor.textCursor()
+            if cursor.hasSelection():
+                self.find_dialog.set_find_text(cursor.selectedText())
+            
+            self.find_dialog.show()
+            self.find_dialog.raise_()
+    
+    def show_replace_dialog(self):
+        """显示替换对话框"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            if not hasattr(self, 'replace_dialog'):
+                self.replace_dialog = ReplaceDialog(self)
+                self.replace_dialog.findNext.connect(self.find_text)
+                self.replace_dialog.replace.connect(self.replace_text)
+                self.replace_dialog.replaceAll.connect(self.replace_all_text)
+            
+            # 获取选中的文本作为查找内容
+            cursor = current_editor.text_editor.textCursor()
+            if cursor.hasSelection():
+                self.replace_dialog.set_find_text(cursor.selectedText())
+            
+            self.replace_dialog.show()
+            self.replace_dialog.raise_()
+    
+    def find_text(self, text, case_sensitive, search_up):
+        """查找文本"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            editor = current_editor.text_editor
+            
+            # 设置查找选项
+            options = QTextDocument.FindFlag()
+            if case_sensitive:
+                options |= QTextDocument.FindFlag.FindCaseSensitively
+            if search_up:
+                options |= QTextDocument.FindFlag.FindBackward
+            
+            # 执行查找
+            cursor = editor.textCursor()
+            if not editor.find(text, options):
+                # 如果没找到，从头/尾开始搜索
+                cursor = QTextCursor(editor.document())
+                editor.setTextCursor(cursor)
+                if not editor.find(text, options):
+                    QMessageBox.information(self, "查找", "找不到指定内容")
+    
+    def replace_text(self, replace_with):
+        """替换文本"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            editor = current_editor.text_editor
+            cursor = editor.textCursor()
+            if cursor.hasSelection():
+                cursor.insertText(replace_with)
+    
+    def replace_all_text(self, find_text, replace_with, case_sensitive):
+        """替换所有文本"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            editor = current_editor.text_editor
+            
+            # 保存当前光标位置
+            original_cursor = editor.textCursor()
+            
+            # 移动到文档开始
+            cursor = QTextCursor(editor.document())
+            editor.setTextCursor(cursor)
+            
+            # 设置查找选项
+            options = QTextDocument.FindFlag()
+            if case_sensitive:
+                options |= QTextDocument.FindFlag.FindCaseSensitively
+            
+            # 计数器
+            count = 0
+            
+            # 开始替换
+            while editor.find(find_text, options):
+                cursor = editor.textCursor()
+                cursor.insertText(replace_with)
+                count += 1
+            
+            # 恢复原始光标位置
+            editor.setTextCursor(original_cursor)
+            
+            # 显示结果
+            QMessageBox.information(self, "替换完成", f"共替换了 {count} 处内容")
+    
+    def change_theme(self):
+        """切换主题"""
+        action = self.sender()
+        if action:
+            self.setStyleSheet(action.data())
+    
+    def zoom_in(self):
+        """放大"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            font = current_editor.text_editor.font()
+            font.setPointSize(font.pointSize() + 1)
+            current_editor.text_editor.setFont(font)
+    
+    def zoom_out(self):
+        """缩小"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            font = current_editor.text_editor.font()
+            if font.pointSize() > 1:
+                font.setPointSize(font.pointSize() - 1)
+                current_editor.text_editor.setFont(font)
+    
+    def reset_zoom(self):
+        """重置缩放"""
+        current_editor = self.get_current_editor()
+        if current_editor and isinstance(current_editor, SwitchableEditor):
+            font = current_editor.text_editor.font()
+            font.setPointSize(12)  # 默认字号
+            current_editor.text_editor.setFont(font)
+    
+    def show_about_dialog(self):
+        """显示关于对话框"""
+        QMessageBox.about(self, 
+            "关于 EasyYAML Editor",
+            """<h3>EasyYAML Editor</h3>
+            <p>版本 1.0</p>
+            <p>一个简单易用的 YAML 编辑器。</p>
+            <p>支持树形编辑和文本编辑模式。</p>
+            <p>© 2024 All rights reserved.</p>"""
+        )
+    
+    def show_help(self):
+        """显示帮助信息"""
+        help_text = """
+        <h3>使用帮助</h3>
+        
+        <h4>基本操作</h4>
+        <ul>
+            <li>Ctrl+N: 新建文件</li>
+            <li>Ctrl+O: 打开文件</li>
+            <li>Ctrl+S: 保存文件</li>
+            <li>Ctrl+W: 关闭当前标签页</li>
+        </ul>
+        
+        <h4>编辑操作</h4>
+        <ul>
+            <li>Ctrl+Z: 撤销</li>
+            <li>Ctrl+Y: 重做</li>
+            <li>Ctrl+F: 查找</li>
+            <li>Ctrl+H: 替换</li>
+        </ul>
+        
+        <h4>视图操作</h4>
+        <ul>
+            <li>Ctrl++: 放大</li>
+            <li>Ctrl+-: 缩小</li>
+            <li>Ctrl+0: 重置缩放</li>
+        </ul>
+        
+        <h4>树形编辑模式</h4>
+        <ul>
+            <li>双击节点: 编辑值</li>
+            <li>右键菜单: 添加/删除节点</li>
+            <li>拖拽: 调整节点顺序</li>
+        </ul>
+        """
+        
+        msg = QMessageBox(self)
+        msg.setWindowTitle("使用帮助")
+        msg.setText(help_text)
+        msg.setTextFormat(Qt.TextFormat.RichText)
+        msg.exec()
+    
+    def get_current_editor(self):
+        """获取当前编辑器"""
+        return self.tab_widget.currentWidget()
