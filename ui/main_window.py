@@ -400,7 +400,7 @@ class ManageTemplatesDialog(QDialog):
                 
                 QMessageBox.information(self, "成功", "模板已删除")
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"��除模板失败: {str(e)}")
+                QMessageBox.critical(self, "错误", f"删除模板失败: {str(e)}")
     
     def rename_template(self):
         """重命名模板"""
@@ -1096,7 +1096,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.removeTab(index)
     
     def create_from_template(self, template_name):
-        """从模板��建新文件"""
+        """从模板建新文件"""
         try:
             if template_name.startswith('user/'):
                 template_path = os.path.join(
@@ -1192,7 +1192,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "没有打开的文件")
             return
         
-        # 获取���前文件名（如果有）
+        # 获取前文件名（如果有）
         current_name = self.tab_widget.tabText(self.tab_widget.currentIndex())
         if current_name.startswith("新建"):
             current_name = ""
@@ -1423,7 +1423,7 @@ class MainWindow(QMainWindow):
             return
         
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "���存文件", "", "YAML files (*.yaml *.yml)")
+            self, "保存文件", "", "YAML files (*.yaml *.yml)")
         
         if file_path:
             try:
@@ -1466,7 +1466,7 @@ class MainWindow(QMainWindow):
             image.save("resources/close.png")
     
     def create_arrow_icon(self):
-        """创建下拉箭��图标"""
+        """创建下拉箭头图标"""
         if not os.path.exists("resources/down-arrow.png"):
             # 创建一个 12x12 的透明图片
             image = QImage(12, 12, QImage.Format.Format_ARGB32)
@@ -1620,7 +1620,7 @@ class MainWindow(QMainWindow):
                         cursor.mergeCharFormat(highlight_format)  # 应用高亮格式
                     
                     if not found:
-                        QMessageBox.information(self, "���找", "找不到指定内容")
+                        QMessageBox.information(self, "查找", "找不到指定内容")
                         # 恢复原始光标位置
                         editor.setTextCursor(cursor)
         except Exception as e:
@@ -2211,7 +2211,7 @@ class MainWindow(QMainWindow):
         
         <h3>基本操作</h3>
         <ul>
-            <li>新建��件: Ctrl+N</li>
+            <li>新建文件: Ctrl+N</li>
             <li>打开文件: Ctrl+O</li>
             <li>保存文件: Ctrl+S</li>
             <li>另存为: Ctrl+Shift+S</li>
