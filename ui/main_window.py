@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QMainWindow, QToolBar, QMenuBar,
                              QDialog, QLabel, QLineEdit, QDialogButtonBox,
                              QPushButton, QHBoxLayout, QCompleter, QTreeWidget, QTreeWidgetItem,
                              QPlainTextEdit, QSplitter, QStackedWidget, QTextBrowser, QApplication)
-from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint
+from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint, QSize
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QImage, QPainter, QPen, QColor, QPolygon, QActionGroup, \
     QTextDocument, QTextCursor, QTextCharFormat, QIcon, QFont, QPalette
 import os
@@ -893,22 +893,22 @@ class MainWindow(QMainWindow):
         # 文件菜单
         file_menu = menubar.addMenu('文件')
         
-        new_action = QAction('新建', self)
+        new_action = QAction(QIcon('resources/icons/new.png'), '新建', self)
         new_action.setShortcut('Ctrl+N')
         new_action.triggered.connect(self.new_file)
         file_menu.addAction(new_action)
         
-        open_action = QAction('打开', self)
+        open_action = QAction(QIcon('resources/icons/open.png'), '打开', self)
         open_action.setShortcut('Ctrl+O')
         open_action.triggered.connect(self.open_file)
         file_menu.addAction(open_action)
         
-        save_action = QAction('保存', self)
+        save_action = QAction(QIcon('resources/icons/save.png'), '保存', self)
         save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_file)
+        save_action.triggered.connect(self.save_current_file)
         file_menu.addAction(save_action)
         
-        save_as_action = QAction('另存为...', self)
+        save_as_action = QAction(QIcon('resources/icons/save-as.png'), '另存为...', self)
         save_as_action.setShortcut('Ctrl+Shift+S')
         save_as_action.triggered.connect(self.save_file_as)
         file_menu.addAction(save_as_action)
@@ -934,41 +934,41 @@ class MainWindow(QMainWindow):
         # 编辑菜单
         edit_menu = menubar.addMenu('编辑')
         
-        undo_action = QAction('撤销', self)
+        undo_action = QAction(QIcon('resources/icons/undo.png'), '撤销', self)
         undo_action.setShortcut('Ctrl+Z')
         undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
         
-        redo_action = QAction('重做', self)
+        redo_action = QAction(QIcon('resources/icons/redo.png'), '重做', self)
         redo_action.setShortcut('Ctrl+Y')
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
         
         edit_menu.addSeparator()
         
-        cut_action = QAction('剪切', self)
+        cut_action = QAction(QIcon('resources/icons/cut.png'), '剪切', self)
         cut_action.setShortcut('Ctrl+X')
         cut_action.triggered.connect(self.cut)
         edit_menu.addAction(cut_action)
         
-        copy_action = QAction('复制', self)
+        copy_action = QAction(QIcon('resources/icons/copy.png'), '复制', self)
         copy_action.setShortcut('Ctrl+C')
         copy_action.triggered.connect(self.copy)
         edit_menu.addAction(copy_action)
         
-        paste_action = QAction('粘贴', self)
+        paste_action = QAction(QIcon('resources/icons/paste.png'), '粘贴', self)
         paste_action.setShortcut('Ctrl+V')
         paste_action.triggered.connect(self.paste)
         edit_menu.addAction(paste_action)
         
         edit_menu.addSeparator()
         
-        find_action = QAction('查找', self)
+        find_action = QAction(QIcon('resources/icons/find.png'), '查找', self)
         find_action.setShortcut('Ctrl+F')
         find_action.triggered.connect(self.show_find_dialog)
         edit_menu.addAction(find_action)
         
-        replace_action = QAction('替换', self)
+        replace_action = QAction(QIcon('resources/icons/replace.png'), '替换', self)
         replace_action.setShortcut('Ctrl+H')
         replace_action.triggered.connect(self.show_replace_dialog)
         edit_menu.addAction(replace_action)
@@ -976,20 +976,20 @@ class MainWindow(QMainWindow):
         # 视图菜单 - 保存为类属性
         self.view_menu = menubar.addMenu('视图')  # 修改这里
         
-        zoom_in_action = QAction('放大', self)
+        zoom_in_action = QAction(QIcon('resources/icons/zoom-in.png'), '放大', self)
         zoom_in_action.setShortcut('Ctrl++')
         zoom_in_action.triggered.connect(self.zoom_in)
         self.view_menu.addAction(zoom_in_action)
         
-        zoom_out_action = QAction('缩小', self)
+        zoom_out_action = QAction(QIcon('resources/icons/zoom-out.png'), '缩小', self)
         zoom_out_action.setShortcut('Ctrl+-')
         zoom_out_action.triggered.connect(self.zoom_out)
         self.view_menu.addAction(zoom_out_action)
         
-        reset_zoom_action = QAction('重置缩放', self)
-        reset_zoom_action.setShortcut('Ctrl+0')
-        reset_zoom_action.triggered.connect(self.reset_zoom)
-        self.view_menu.addAction(reset_zoom_action)
+        zoom_reset_action = QAction(QIcon('resources/icons/zoom-reset.png'), '重置缩放', self)
+        zoom_reset_action.setShortcut('Ctrl+0')
+        zoom_reset_action.triggered.connect(self.reset_zoom)
+        self.view_menu.addAction(zoom_reset_action)
         
         # 帮助菜单
         help_menu = menubar.addMenu('帮助')
@@ -1005,14 +1005,41 @@ class MainWindow(QMainWindow):
     
     def create_toolbar(self):
         toolbar = QToolBar()
+        toolbar.setIconSize(QSize(24, 24))
         self.addToolBar(toolbar)
         
-        new_action = toolbar.addAction("新建")
+        # 添加工具栏按钮
+        new_action = toolbar.addAction(QIcon('resources/icons/new.png'), "新建")
         new_action.triggered.connect(self.new_file)
-        open_action = toolbar.addAction("打开")
+        new_action.setToolTip("新建文件 (Ctrl+N)")
+        
+        open_action = toolbar.addAction(QIcon('resources/icons/open.png'), "打开")
         open_action.triggered.connect(self.open_file)
-        save_action = toolbar.addAction("保存")
-        save_action.triggered.connect(self.save_file)
+        open_action.setToolTip("打开文件 (Ctrl+O)")
+        
+        save_action = toolbar.addAction(QIcon('resources/icons/save.png'), "保存")
+        save_action.triggered.connect(self.save_current_file)
+        save_action.setToolTip("保存文件 (Ctrl+S)")
+        
+        toolbar.addSeparator()
+        
+        undo_action = toolbar.addAction(QIcon('resources/icons/undo.png'), "撤销")
+        undo_action.triggered.connect(self.undo)
+        undo_action.setToolTip("撤销 (Ctrl+Z)")
+        
+        redo_action = toolbar.addAction(QIcon('resources/icons/redo.png'), "重做")
+        redo_action.triggered.connect(self.redo)
+        redo_action.setToolTip("重做 (Ctrl+Y)")
+        
+        toolbar.addSeparator()
+        
+        find_action = toolbar.addAction(QIcon('resources/icons/find.png'), "查找")
+        find_action.triggered.connect(self.show_find_dialog)
+        find_action.setToolTip("查找 (Ctrl+F)")
+        
+        replace_action = toolbar.addAction(QIcon('resources/icons/replace.png'), "替换")
+        replace_action.triggered.connect(self.show_replace_dialog)
+        replace_action.setToolTip("替换 (Ctrl+H)")
     
     def new_file(self):
         editor = YamlEditorWidget()
@@ -1396,7 +1423,7 @@ class MainWindow(QMainWindow):
             return
         
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "保存文件", "", "YAML files (*.yaml *.yml)")
+            self, "���存文件", "", "YAML files (*.yaml *.yml)")
         
         if file_path:
             try:
