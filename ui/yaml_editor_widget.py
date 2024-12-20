@@ -425,8 +425,9 @@ class YamlEditorWidget(QWidget):
             data = yaml.safe_load(text) or {}
             self.tree.from_yaml_data(data)
             self._modified = False
+            self._can_convert_tree = True  # 成功加载时设置为True
         except Exception as e:
-            self._can_convert_tree = False
+            self._can_convert_tree = False  # 加载失败时设置为False
             print("警告", f"加载YAML失败: {str(e)}")
 
     def canConvertTree(self):
@@ -512,12 +513,38 @@ class SwitchableEditor(QWidget):
                 # 在文本视图下不显示错误
                 pass
 
-    def switch_view(self):
-        """切换视图"""
-        if self.is_tree_view():
-            # 检查当前文本是否有效
-            if not self.text_editor.toPlainText().strip():
-                QMessageBox.warning(self, "警告", "当前文本无效，无法切换到树形视图")
-                self.view_combo.setCurrentText("文本视图")  # 切换回文本视图
-                return
-        # 其他切换逻辑...
+    def switch_view(self, view_name):
+        """切换编辑器视图"""
+        if view_name == "树形视图":
+            if self.stack.currentWidget() != self.tree_editor:
+                try:
+                    text = self.text_editor.toPlainText()
+                    if not text.strip():
+                        raise ValueError("空文件不能使用树形视图")
+                        
+                    # 尝试解析YAML
+                    self.tree_editor.setPlainText(text)
+                    
+                    # 检查是否可以转换为树形结构
+                    if not self.tree_editor.canConvertTree():
+                        raise ValueError("该文件不支持树形视图编辑")
+                        
+                    self.stack.setCurrentWidget(self.tree_editor)
+                except Exception as e:
+                    QMessageBox.warning(self, "警告", f"无法切换到树形视图: {str(e)}")
+                    # 恢复下拉框选择
+                    self.view_combo.blockSignals(True)
+                    self.view_combo.setCurrentText("文本视图")
+                    self.view_combo.blockSignals(False)
+                    return
+        else:
+            if self.stack.currentWidget() != self.text_editor:
+                self.update_text_from_tree()
+                self.stack.setCurrentWidget(self.text_editor)
+
+    def update_theme(self, theme_style):
+        """更新编辑器主题"""
+        self.setStyleSheet(theme_style)
+        # 更新子组件样式
+        self.text_editor.setStyleSheet(theme_style)
+        self.tree_editor.setStyleSheet(theme_style)

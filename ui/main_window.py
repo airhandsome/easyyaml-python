@@ -3,10 +3,10 @@ from PyQt6.QtWidgets import (QMainWindow, QToolBar, QMenuBar,
                              QWidget, QTabWidget, QComboBox, QTabBar, QMenu,
                              QDialog, QLabel, QLineEdit, QDialogButtonBox,
                              QPushButton, QHBoxLayout, QCompleter, QTreeWidget, QTreeWidgetItem,
-                             QPlainTextEdit, QSplitter, QStackedWidget)
+                             QPlainTextEdit, QSplitter, QStackedWidget, QTextBrowser, QApplication)
 from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QImage, QPainter, QPen, QColor, QPolygon, QActionGroup, \
-    QTextDocument, QTextCursor, QTextCharFormat, QIcon
+    QTextDocument, QTextCursor, QTextCharFormat, QIcon, QFont, QPalette
 import os
 import json
 import shutil
@@ -400,7 +400,7 @@ class ManageTemplatesDialog(QDialog):
                 
                 QMessageBox.information(self, "成功", "模板已删除")
             except Exception as e:
-                QMessageBox.critical(self, "错误", f"删除模板失败: {str(e)}")
+                QMessageBox.critical(self, "错误", f"��除模板失败: {str(e)}")
     
     def rename_template(self):
         """重命名模板"""
@@ -444,7 +444,7 @@ class ManageTemplatesDialog(QDialog):
                 # 保存配置
                 self.main_window.save_user_template_config()
                 
-                # 重新加载模板
+                # 重新加载模��
                 self.main_window.load_templates()
                 self.load_templates()
                 
@@ -553,6 +553,7 @@ class SwitchableEditor(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.app = QApplication.instance()  # 获取应用程序实例
         self.setWindowTitle("EasyYAML Editor")
         self.setGeometry(100, 100, 800, 600)
         
@@ -778,7 +779,7 @@ class MainWindow(QMainWindow):
         self.layout.addWidget(self.tab_widget)
         
         # 创建菜单栏和工具栏
-        self.create_menu_bar()
+        self.create_menu_bar()  # 先创建菜单栏
         self.create_toolbar()
         
         # 设置快捷键
@@ -790,6 +791,9 @@ class MainWindow(QMainWindow):
         
         # 初始化搜索框
         self.search_box.search_timer.timeout.connect(self.filter_templates)
+        
+        # 设置主题系统
+        self.setup_themes()  # 后设置主题
     
     def setup_shortcuts(self):
         # Ctrl+S 保存
@@ -821,7 +825,7 @@ class MainWindow(QMainWindow):
             else:
                 print(f"内置模板目录不存在: {self.template_dir}")  # 调试信息
             
-            # 获取用户模板
+            # 获用户模板
             if os.path.exists(self.user_template_dir):
                 for root, dirs, files in os.walk(self.user_template_dir):
                     for file in files:
@@ -901,7 +905,7 @@ class MainWindow(QMainWindow):
         
         save_action = QAction('保存', self)
         save_action.setShortcut('Ctrl+S')
-        save_action.triggered.connect(self.save_current_file)
+        save_action.triggered.connect(self.save_file)
         file_menu.addAction(save_action)
         
         save_as_action = QAction('另存为...', self)
@@ -969,70 +973,23 @@ class MainWindow(QMainWindow):
         replace_action.triggered.connect(self.show_replace_dialog)
         edit_menu.addAction(replace_action)
         
-        # 视图菜单
-        view_menu = menubar.addMenu('视图')
-        
-        theme_menu = view_menu.addMenu('主题')
-        self.theme_group = QActionGroup(self)
-        
-        # 添加主题选项
-        themes = {
-            '浅色': """
-                QMainWindow { background-color: #f5f5f5; }
-                QPlainTextEdit { background-color: white; color: black; }
-            """,
-            '深色': """
-                QMainWindow { background-color: #2d2d2d; }
-                QPlainTextEdit { 
-                    background-color: #1e1e1e; 
-                    color: #d4d4d4;
-                    selection-background-color: #264f78;
-                }
-                QTreeWidget {
-                    background-color: #1e1e1e;
-                    color: #d4d4d4;
-                }
-                QLabel { color: #d4d4d4; }
-                QMenuBar {
-                    background-color: #2d2d2d;
-                    color: #d4d4d4;
-                }
-                QMenuBar::item:selected { background-color: #3e3e3e; }
-                QMenu {
-                    background-color: #2d2d2d;
-                    color: #d4d4d4;
-                }
-                QMenu::item:selected { background-color: #3e3e3e; }
-            """
-        }
-        
-        for theme_name, theme_style in themes.items():
-            action = QAction(theme_name, self)
-            action.setCheckable(True)
-            action.setData(theme_style)
-            self.theme_group.addAction(action)
-            theme_menu.addAction(action)
-            action.triggered.connect(self.change_theme)
-        
-        # 默认选中浅色主题
-        self.theme_group.actions()[0].setChecked(True)
-        
-        view_menu.addSeparator()
+        # 视图菜单 - 保存为类属性
+        self.view_menu = menubar.addMenu('视图')  # 修改这里
         
         zoom_in_action = QAction('放大', self)
         zoom_in_action.setShortcut('Ctrl++')
         zoom_in_action.triggered.connect(self.zoom_in)
-        view_menu.addAction(zoom_in_action)
+        self.view_menu.addAction(zoom_in_action)
         
         zoom_out_action = QAction('缩小', self)
         zoom_out_action.setShortcut('Ctrl+-')
         zoom_out_action.triggered.connect(self.zoom_out)
-        view_menu.addAction(zoom_out_action)
+        self.view_menu.addAction(zoom_out_action)
         
         reset_zoom_action = QAction('重置缩放', self)
         reset_zoom_action.setShortcut('Ctrl+0')
         reset_zoom_action.triggered.connect(self.reset_zoom)
-        view_menu.addAction(reset_zoom_action)
+        self.view_menu.addAction(reset_zoom_action)
         
         # 帮助菜单
         help_menu = menubar.addMenu('帮助')
@@ -1112,7 +1069,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.removeTab(index)
     
     def create_from_template(self, template_name):
-        """从模板创建新文件"""
+        """从模板��建新文件"""
         try:
             if template_name.startswith('user/'):
                 template_path = os.path.join(
@@ -1208,7 +1165,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "警告", "没有打开的文件")
             return
         
-        # 获取当前文件名（如果有）
+        # 获取���前文件名（如果有）
         current_name = self.tab_widget.tabText(self.tab_widget.currentIndex())
         if current_name.startswith("新建"):
             current_name = ""
@@ -1482,7 +1439,7 @@ class MainWindow(QMainWindow):
             image.save("resources/close.png")
     
     def create_arrow_icon(self):
-        """创建下拉箭头图标"""
+        """创建下拉箭��图标"""
         if not os.path.exists("resources/down-arrow.png"):
             # 创建一个 12x12 的透明图片
             image = QImage(12, 12, QImage.Format.Format_ARGB32)
@@ -1572,7 +1529,7 @@ class MainWindow(QMainWindow):
                 self.replace_dialog.replace.connect(self.replace_text)
                 self.replace_dialog.replaceAll.connect(self.replace_all_text)
             
-            # 获取选中的文本作为查找内容
+            # 获选中的文本作为查找内容
             cursor = current_editor.text_editor.textCursor()
             if cursor.hasSelection():
                 self.replace_dialog.set_find_text(cursor.selectedText())
@@ -1636,7 +1593,7 @@ class MainWindow(QMainWindow):
                         cursor.mergeCharFormat(highlight_format)  # 应用高亮格式
                     
                     if not found:
-                        QMessageBox.information(self, "查找", "找不到指定内容")
+                        QMessageBox.information(self, "���找", "找不到指定内容")
                         # 恢复原始光标位置
                         editor.setTextCursor(cursor)
         except Exception as e:
@@ -1711,90 +1668,573 @@ class MainWindow(QMainWindow):
                 cursor.endEditBlock()
                 QMessageBox.warning(self, "错误", f"替换过程中发生错误: {str(e)}")
     
+    def setup_themes(self):
+        """设置主题样式"""
+        self.themes = {
+            '浅色': """
+                /* 全局样式 */
+                QMainWindow, QDialog {
+                    background-color: #f8f9fa;
+                    color: #212529;
+                }
+                
+                /* 菜单栏 */
+                QMenuBar {
+                    background-color: #ffffff;
+                    border-bottom: 1px solid #dee2e6;
+                }
+                
+                QMenuBar::item {
+                    padding: 6px 10px;
+                    margin: 1px;
+                    border-radius: 4px;
+                }
+                
+                QMenuBar::item:selected {
+                    background-color: #e9ecef;
+                }
+                
+                /* 菜单 */
+                QMenu {
+                    background-color: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 5px;
+                }
+                
+                QMenu::item {
+                    padding: 6px 20px;
+                    border-radius: 4px;
+                }
+                
+                QMenu::item:selected {
+                    background-color: #e9ecef;
+                }
+                
+                /* 工具栏 */
+                QToolBar {
+                    background-color: #ffffff;
+                    border-bottom: 1px solid #dee2e6;
+                    spacing: 8px;
+                    padding: 4px;
+                }
+                
+                /* 标签页 */
+                QTabWidget::pane {
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    background: #ffffff;
+                }
+                
+                QTabBar::tab {
+                    background: #f8f9fa;
+                    border: 1px solid #dee2e6;
+                    padding: 8px 16px;
+                    margin-right: 2px;
+                    border-top-left-radius: 6px;
+                    border-top-right-radius: 6px;
+                }
+                
+                QTabBar::tab:selected {
+                    background: #ffffff;
+                    border-bottom-color: #ffffff;
+                }
+                
+                QTabBar::tab:hover {
+                    background: #e9ecef;
+                }
+                
+                /* 编辑器 */
+                QPlainTextEdit {
+                    background-color: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 8px;
+                    selection-background-color: #c7dbf3;
+                    font-family: "JetBrains Mono", "Consolas", monospace;
+                    font-size: 13px;
+                }
+                
+                /* 树形视图 */
+                QTreeWidget {
+                    background-color: #ffffff;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 4px;
+                }
+                
+                QTreeWidget::item {
+                    padding: 4px;
+                    border-radius: 4px;
+                }
+                
+                QTreeWidget::item:selected {
+                    background: #e7f1ff;
+                    color: #000000;
+                }
+                
+                QTreeWidget::item:hover {
+                    background: #f8f9fa;
+                }
+                
+                /* 按钮 */
+                QPushButton {
+                    background-color: #0d6efd;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-weight: 500;
+                }
+                
+                QPushButton:hover {
+                    background-color: #0b5ed7;
+                }
+                
+                QPushButton:pressed {
+                    background-color: #0a58ca;
+                }
+                
+                /* 下拉框 */
+                QComboBox {
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    background: #ffffff;
+                    min-height: 24px;
+                }
+                
+                QComboBox:hover {
+                    border-color: #b6bfc8;
+                }
+                
+                QComboBox:focus {
+                    border-color: #0d6efd;
+                }
+                
+                /* 输入框 */
+                QLineEdit {
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    padding: 8px;
+                    background: #ffffff;
+                    selection-background-color: #c7dbf3;
+                }
+                
+                QLineEdit:focus {
+                    border-color: #0d6efd;
+                }
+                
+                /* 滚动条 */
+                QScrollBar:vertical {
+                    border: none;
+                    background: #f8f9fa;
+                    width: 12px;
+                    margin: 0;
+                    border-radius: 6px;
+                }
+                
+                QScrollBar::handle:vertical {
+                    background: #dee2e6;
+                    min-height: 20px;
+                    border-radius: 6px;
+                }
+                
+                QScrollBar::handle:vertical:hover {
+                    background: #ced4da;
+                }
+            """,
+            
+            '深色': """
+                /* 全局样式 */
+                QMainWindow, QDialog {
+                    background-color: #1a1a1a;
+                    color: #e0e0e0;
+                }
+                
+                /* 菜单栏 */
+                QMenuBar {
+                    background-color: #2d2d2d;
+                    border-bottom: 1px solid #404040;
+                }
+                
+                QMenuBar::item {
+                    padding: 6px 10px;
+                    margin: 1px;
+                    border-radius: 4px;
+                }
+                
+                QMenuBar::item:selected {
+                    background-color: #404040;
+                }
+                
+                /* 菜单 */
+                QMenu {
+                    background-color: #2d2d2d;
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    padding: 5px;
+                }
+                
+                QMenu::item {
+                    padding: 6px 20px;
+                    border-radius: 4px;
+                }
+                
+                QMenu::item:selected {
+                    background-color: #404040;
+                }
+                
+                /* 工具栏 */
+                QToolBar {
+                    background-color: #2d2d2d;
+                    border-bottom: 1px solid #404040;
+                    spacing: 8px;
+                    padding: 4px;
+                }
+                
+                /* 标签页 */
+                QTabWidget::pane {
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    background: #1a1a1a;
+                }
+                
+                QTabBar::tab {
+                    background: #2d2d2d;
+                    border: 1px solid #404040;
+                    padding: 8px 16px;
+                    margin-right: 2px;
+                    border-top-left-radius: 6px;
+                    border-top-right-radius: 6px;
+                    color: #e0e0e0;
+                }
+                
+                QTabBar::tab:selected {
+                    background: #1a1a1a;
+                    border-bottom-color: #1a1a1a;
+                }
+                
+                QTabBar::tab:hover {
+                    background: #404040;
+                }
+                
+                /* 编辑器 */
+                QPlainTextEdit {
+                    background-color: #1f1f1f;
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    padding: 8px;
+                    color: #e0e0e0;
+                    selection-background-color: #264f78;
+                    font-family: "JetBrains Mono", "Consolas", monospace;
+                    font-size: 13px;
+                }
+                
+                /* 树形视图 */
+                QTreeWidget {
+                    background-color: #1f1f1f;
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    padding: 4px;
+                    color: #e0e0e0;
+                }
+                
+                QTreeWidget::item {
+                    padding: 4px;
+                    border-radius: 4px;
+                }
+                
+                QTreeWidget::item:selected {
+                    background: #264f78;
+                    color: #ffffff;
+                }
+                
+                QTreeWidget::item:hover {
+                    background: #333333;
+                }
+                
+                /* 按钮 */
+                QPushButton {
+                    background-color: #0d47a1;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    font-weight: 500;
+                }
+                
+                QPushButton:hover {
+                    background-color: #1565c0;
+                }
+                
+                QPushButton:pressed {
+                    background-color: #0a3d91;
+                }
+                
+                /* 下拉框 */
+                QComboBox {
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                    background: #2d2d2d;
+                    min-height: 24px;
+                    color: #e0e0e0;
+                }
+                
+                QComboBox:hover {
+                    border-color: #0d47a1;
+                }
+                
+                QComboBox:focus {
+                    border-color: #1565c0;
+                }
+                
+                /* 输入框 */
+                QLineEdit {
+                    border: 1px solid #404040;
+                    border-radius: 6px;
+                    padding: 8px;
+                    background: #2d2d2d;
+                    color: #e0e0e0;
+                    selection-background-color: #264f78;
+                }
+                
+                QLineEdit:focus {
+                    border-color: #1565c0;
+                }
+                
+                /* 滚动条 */
+                QScrollBar:vertical {
+                    border: none;
+                    background: #1a1a1a;
+                    width: 12px;
+                    margin: 0;
+                    border-radius: 6px;
+                }
+                
+                QScrollBar::handle:vertical {
+                    background: #404040;
+                    min-height: 20px;
+                    border-radius: 6px;
+                }
+                
+                QScrollBar::handle:vertical:hover {
+                    background: #4a4a4a;
+                }
+            """
+        }
+
+        # 创建主题切换菜单
+        theme_menu = self.view_menu.addMenu('主题')
+        self.theme_group = QActionGroup(self)
+        
+        for theme_name, theme_style in self.themes.items():
+            action = QAction(theme_name, self)
+            action.setCheckable(True)
+            action.setData(theme_style)
+            self.theme_group.addAction(action)
+            theme_menu.addAction(action)
+            action.triggered.connect(self.change_theme)
+        
+        # 默认选中浅色主题
+        self.theme_group.actions()[0].setChecked(True)
+        self.setStyleSheet(self.themes['浅色'])
+
     def change_theme(self):
         """切换主题"""
-        action = self.sender()
-        if action:
+        try:
+            action = self.sender()
+            if not action:
+                return
+            
+            is_dark = action.text() == '深色'
+            
+            # 设置深色主题的全局样式
+            if is_dark:
+                self.app.setStyleSheet("""
+                    * {
+                        color: #ffffff;
+                    }
+                    QToolTip {
+                        color: #ffffff;
+                        background-color: #2d2d2d;
+                        border: 1px solid #404040;
+                    }
+                    QMenuBar {
+                        color: #ffffff;
+                    }
+                    QMenuBar::item {
+                        color: #ffffff;
+                    }
+                    QMenu {
+                        color: #ffffff;
+                    }
+                    QMenu::item {
+                        color: #ffffff;
+                    }
+                    QTabBar::tab {
+                        color: #ffffff;
+                    }
+                    QLabel {
+                        color: #ffffff;
+                    }
+                    QPushButton {
+                        color: #ffffff;
+                    }
+                    QComboBox {
+                        color: #ffffff;
+                    }
+                    QLineEdit {
+                        color: #ffffff;
+                    }
+                    QTreeWidget {
+                        color: #ffffff;
+                    }
+                    QHeaderView::section {
+                        color: #ffffff;
+                    }
+                    QTextEdit, QPlainTextEdit {
+                        color: #ffffff;
+                    }
+                """)
+            else:
+                self.app.setStyleSheet("")
+            
+            # 应用主题样式表
             self.setStyleSheet(action.data())
-    
+            
+            # 强制刷新样式
+            self.app.processEvents()
+            self.update()
+            
+        except Exception as e:
+            print(f"主题切换错误: {str(e)}")
+            # 发生错误时恢复默认主题
+            self.app.setStyleSheet("")
+            self.setStyleSheet(self.themes['浅色'])
+
     def zoom_in(self):
-        """放大"""
+        """放大文本"""
         current_editor = self.get_current_editor()
         if current_editor and isinstance(current_editor, SwitchableEditor):
+            # 获取当前字体
             font = current_editor.text_editor.font()
-            font.setPointSize(font.pointSize() + 1)
+            size = font.pointSize()
+            # 增加字体大小
+            font.setPointSize(size + 1)
+            # 应用新字体
             current_editor.text_editor.setFont(font)
-    
+            current_editor.tree_editor.setFont(font)
+
     def zoom_out(self):
-        """缩小"""
+        """缩小文本"""
         current_editor = self.get_current_editor()
         if current_editor and isinstance(current_editor, SwitchableEditor):
+            # 获取当前字体
             font = current_editor.text_editor.font()
-            if font.pointSize() > 1:
-                font.setPointSize(font.pointSize() - 1)
+            size = font.pointSize()
+            # 减小字体大小，但不小于最小值
+            if size > 8:
+                font.setPointSize(size - 1)
+                # 应用新字体
                 current_editor.text_editor.setFont(font)
-    
+                current_editor.tree_editor.setFont(font)
+
     def reset_zoom(self):
         """重置缩放"""
         current_editor = self.get_current_editor()
         if current_editor and isinstance(current_editor, SwitchableEditor):
-            font = current_editor.text_editor.font()
-            font.setPointSize(12)  # 默认字号
+            # 创建默认字体
+            font = QFont("JetBrains Mono", 13)
+            # 应用默认字体
             current_editor.text_editor.setFont(font)
-    
+            current_editor.tree_editor.setFont(font)
+
+    def get_current_editor(self):
+        """获取当前活动的编辑器"""
+        current_widget = self.tab_widget.currentWidget()
+        if current_widget:
+            return current_widget
+        return None
+
     def show_about_dialog(self):
         """显示关于对话框"""
-        QMessageBox.about(self, 
-            "关于 EasyYAML Editor",
-            """<h3>EasyYAML Editor</h3>
-            <p>版本 1.0</p>
-            <p>一个简单易用的 YAML 编辑器。</p>
-            <p>支持树形编辑和文本编辑模式。</p>
-            <p>© 2024 All rights reserved.</p>"""
-        )
-    
+        about_text = """
+        <h2>EasyYAML Editor</h2>
+        <p>版本: 1.0.0</p>
+        <p>一个简单易用的 YAML 文件编辑器</p>
+        <p>特点:</p>
+        <ul>
+            <li>支持多种模板快速生成</li>
+            <li>提供文本和树形两种编辑模式</li>
+            <li>支持主题切换</li>
+            <li>支持文件拖放</li>
+        </ul>
+        <p>作者: Your Name</p>
+        <p>GitHub: <a href="https://github.com/yourusername/easyyaml-python">项目地址</a></p>
+        """
+        
+        QMessageBox.about(self, "关于 EasyYAML Editor", about_text)
+
     def show_help(self):
         """显示帮助信息"""
         help_text = """
-        <h3>使用帮助</h3>
+        <h2>使用帮助</h2>
         
-        <h4>基本操作</h4>
+        <h3>基本操作</h3>
         <ul>
-            <li>Ctrl+N: 新建文件</li>
-            <li>Ctrl+O: 打开文件</li>
-            <li>Ctrl+S: 保存文件</li>
-            <li>Ctrl+W: 关闭当前标签页</li>
+            <li>新建��件: Ctrl+N</li>
+            <li>打开文件: Ctrl+O</li>
+            <li>保存文件: Ctrl+S</li>
+            <li>另存为: Ctrl+Shift+S</li>
         </ul>
         
-        <h4>编辑操作</h4>
+        <h3>编辑功能</h3>
         <ul>
-            <li>Ctrl+Z: 撤销</li>
-            <li>Ctrl+Y: 重做</li>
-            <li>Ctrl+F: 查找</li>
-            <li>Ctrl+H: 替换</li>
+            <li>撤销: Ctrl+Z</li>
+            <li>重做: Ctrl+Y</li>
+            <li>查找: Ctrl+F</li>
+            <li>替换: Ctrl+H</li>
         </ul>
         
-        <h4>视图操作</h4>
+        <h3>视图控制</h3>
         <ul>
-            <li>Ctrl++: 放大</li>
-            <li>Ctrl+-: 缩小</li>
-            <li>Ctrl+0: 重置缩放</li>
+            <li>放大: Ctrl++</li>
+            <li>缩小: Ctrl+-</li>
+            <li>重置缩放: Ctrl+0</li>
+            <li>切换编辑模式: 使用编辑器上方的下拉菜单</li>
         </ul>
         
-        <h4>树形编辑模式</h4>
+        <h3>模板使用</h3>
         <ul>
-            <li>双击节点: 编辑值</li>
-            <li>右键菜单: 添加/删除节点</li>
-            <li>拖拽: 调整节点顺序</li>
+            <li>使用搜索框快速查找模板</li>
+            <li>可以将常用文件保存为模板</li>
+            <li>支持模板分类管理</li>
+        </ul>
+        
+        <h3>其他功能</h3>
+        <ul>
+            <li>支持浅色/深色主题切换</li>
+            <li>支持多标签页编辑</li>
+            <li>支持文件拖放打开</li>
         </ul>
         """
         
-        msg = QMessageBox(self)
-        msg.setWindowTitle("使用帮助")
-        msg.setText(help_text)
-        msg.setTextFormat(Qt.TextFormat.RichText)
-        msg.exec()
-    
-    def get_current_editor(self):
-        """获取当前编辑器"""
-        return self.tab_widget.currentWidget()
+        help_dialog = QDialog(self)
+        help_dialog.setWindowTitle("使用帮助")
+        help_dialog.setMinimumSize(500, 400)
+        
+        layout = QVBoxLayout(help_dialog)
+        
+        text_browser = QTextBrowser()
+        text_browser.setHtml(help_text)
+        text_browser.setOpenExternalLinks(True)
+        
+        layout.addWidget(text_browser)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        button_box.accepted.connect(help_dialog.accept)
+        layout.addWidget(button_box)
+        
+        help_dialog.exec()
