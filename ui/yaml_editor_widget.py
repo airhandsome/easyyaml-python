@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (QWidget, QTreeWidget, QTreeWidgetItem, 
                            QVBoxLayout, QHBoxLayout, QPushButton, 
                            QMenu, QInputDialog, QMessageBox, QComboBox,
-                           QLineEdit, QLabel, QDialog, QDialogButtonBox)
+                           QLineEdit, QLabel, QDialog, QDialogButtonBox,
+                           QPlainTextEdit, QStackedWidget)
 from PyQt6.QtCore import Qt, pyqtSignal
 import yaml
 import copy
@@ -417,7 +418,7 @@ class YamlEditorWidget(QWidget):
         
         # 用于跟踪修改状态
         self._modified = False
-    
+        self._can_convert_tree = True
     def setPlainText(self, text):
         """从文本加载YAML"""
         try:
@@ -425,8 +426,12 @@ class YamlEditorWidget(QWidget):
             self.tree.from_yaml_data(data)
             self._modified = False
         except Exception as e:
-            QMessageBox.warning(self, "警告", f"加载YAML失败: {str(e)}")
-    
+            self._can_convert_tree = False
+            print("警告", f"加载YAML失败: {str(e)}")
+
+    def canConvertTree(self):
+        return self._can_convert_tree
+
     def toPlainText(self):
         """将树形结构转换为YAML文本"""
         try:
@@ -448,3 +453,71 @@ class YamlEditorWidget(QWidget):
             def isModified(self):
                 return self._modified
         return Document(self._modified) 
+
+class SwitchableEditor(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 创建工具栏
+        toolbar = QHBoxLayout()
+        self.view_combo = QComboBox()
+        self.view_combo.addItems(["文本视图", "树形视图"])  # 改变默认顺序
+        self.view_combo.currentTextChanged.connect(self.switch_view)
+        toolbar.addWidget(QLabel("编辑器视图:"))
+        toolbar.addWidget(self.view_combo)
+        toolbar.addStretch()
+        self.layout.addLayout(toolbar)
+        
+        # 创建堆叠部件来容纳两种编辑器
+        self.stack = QStackedWidget()
+        self.layout.addWidget(self.stack)
+        
+        # 创建两种编辑器
+        self.text_editor = QPlainTextEdit()  # 文本编辑器放在前面
+        self.tree_editor = YamlEditorWidget()
+        
+        # 添加到堆叠部件
+        self.stack.addWidget(self.text_editor)  # 文本编辑器作为默认视图
+        self.stack.addWidget(self.tree_editor)
+        
+        # 连接编辑器的修改信号
+        self.tree_editor.tree.contentChanged.connect(self.on_tree_changed)
+        self.text_editor.textChanged.connect(self.on_text_changed)
+        
+        # 用于防止循环更新
+        self._updating = False
+
+    def is_tree_view(self):
+        """检查当前是否为树形视图"""
+        return self.stack.currentWidget() == self.tree_editor
+
+    def load_yaml_file(self, file_path):
+        """加载 YAML 文件"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                if self.is_tree_view():  # 仅在树形视图下加载
+                    self.tree_editor.load_yaml(content)
+                else:
+                    # 在文本视图下直接显示内容
+                    self.text_editor.setPlainText(content)
+        except Exception as e:
+            if self.is_tree_view():  # 仅在树形视图下显示错误
+                QMessageBox.critical(self, "加载失败", f"该文件不支持使用树形视图: {str(e)}")
+                self.view_combo.setCurrentText("文本视图")  # 切换回文本视图
+                self.text_editor.setPlainText(content)  # 显示内容
+            else:
+                # 在文本视图下不显示错误
+                pass
+
+    def switch_view(self):
+        """切换视图"""
+        if self.is_tree_view():
+            # 检查当前文本是否有效
+            if not self.text_editor.toPlainText().strip():
+                QMessageBox.warning(self, "警告", "当前文本无效，无法切换到树形视图")
+                self.view_combo.setCurrentText("文本视图")  # 切换回文本视图
+                return
+        # 其他切换逻辑...

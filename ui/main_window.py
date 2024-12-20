@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QMainWindow, QToolBar, QMenuBar,
                              QPlainTextEdit, QSplitter, QStackedWidget)
 from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QImage, QPainter, QPen, QColor, QPolygon, QActionGroup, \
-    QTextDocument, QTextCursor
+    QTextDocument, QTextCursor, QTextCharFormat, QIcon
 import os
 import json
 import shutil
@@ -461,6 +461,7 @@ class SwitchableEditor(QWidget):
         # 创建工具栏
         toolbar = QHBoxLayout()
         self.view_combo = QComboBox()
+
         self.view_combo.addItems(["文本视图", "树形视图"])  # 改变默认顺序
         self.view_combo.currentTextChanged.connect(self.switch_view)
         toolbar.addWidget(QLabel("编辑器视图:"))
@@ -517,6 +518,8 @@ class SwitchableEditor(QWidget):
         try:
             text = self.text_editor.toPlainText()
             self.tree_editor.setPlainText(text)
+
+
         except Exception as e:
             print(f"更新树形视图失败: {str(e)}")
     
@@ -869,7 +872,7 @@ class MainWindow(QMainWindow):
             # 排序结果
             filtered.sort(key=lambda x: x[0])
             
-            # 添加过滤后的结果
+            # 添加过后的结果
             for display_name, template_path in filtered:
                 self.search_box.addItem(display_name, template_path)
             
@@ -1579,67 +1582,134 @@ class MainWindow(QMainWindow):
     
     def find_text(self, text, case_sensitive, search_up):
         """查找文本"""
-        current_editor = self.get_current_editor()
-        if current_editor and isinstance(current_editor, SwitchableEditor):
-            editor = current_editor.text_editor
+        try:
+            current_editor = self.get_current_editor()
             
-            # 设置查找选项
-            options = QTextDocument.FindFlag()
-            if case_sensitive:
-                options |= QTextDocument.FindFlag.FindCaseSensitively
-            if search_up:
-                options |= QTextDocument.FindFlag.FindBackward
-            
-            # 执行查找
-            cursor = editor.textCursor()
-            if not editor.find(text, options):
-                # 如果没找到，从头/尾开始搜索
-                cursor = QTextCursor(editor.document())
-                editor.setTextCursor(cursor)
-                if not editor.find(text, options):
-                    QMessageBox.information(self, "查找", "找不到指定内容")
+            if current_editor and isinstance(current_editor, SwitchableEditor):
+                # 确保当前是文本编辑模式
+                current_widget = current_editor.stack.currentWidget()
+                
+                if current_widget != current_editor.text_editor:
+                    QMessageBox.information(self, "提示", "请切换到文本编辑模式使用查找功能")
+                    return
+                    
+                editor = current_editor.text_editor
+                
+                # 设置查找选项
+                options = QTextDocument.FindFlag(0)  # 初始化为0
+                
+                if case_sensitive:
+                    options |= QTextDocument.FindFlag.FindCaseSensitively
+                if search_up:
+                    options |= QTextDocument.FindFlag.FindBackward
+                
+                # 获取当前光标位置
+                cursor = editor.textCursor()
+                
+                # 如果是向上搜索，将光标移动到选择的开始位置
+                if search_up and cursor.hasSelection():
+                    cursor.setPosition(cursor.selectionStart())
+                    editor.setTextCursor(cursor)
+                
+                # 执行查找
+                found = editor.find(text, options)
+                
+                if found:
+                    # 设置高亮背景颜色
+                    highlight_format = QTextCharFormat()
+                    highlight_format.setBackground(QColor("#ffff00"))  # 设置高亮颜色
+                    cursor.mergeCharFormat(highlight_format)  # 应用高亮格式
+                
+                if not found:
+                    # 如果没找到，从文档头部或尾部继续搜索
+                    cursor = QTextCursor(editor.document())
+                    if search_up:
+                        cursor.movePosition(QTextCursor.MoveOperation.End)
+                    editor.setTextCursor(cursor)
+                    
+                    found = editor.find(text, options)
+                    
+                    if found:
+                        # 设置高亮背景颜色
+                        highlight_format = QTextCharFormat()
+                        highlight_format.setBackground(QColor("#ffcc00"))  # 设置高亮颜色
+                        cursor.mergeCharFormat(highlight_format)  # 应用高亮格式
+                    
+                    if not found:
+                        QMessageBox.information(self, "查找", "找不到指定内容")
+                        # 恢复原始光标位置
+                        editor.setTextCursor(cursor)
+        except Exception as e:
+            print(f"发生错误: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(self, "错误", f"查找过程中发生错误: {str(e)}")
     
     def replace_text(self, replace_with):
         """替换文本"""
         current_editor = self.get_current_editor()
         if current_editor and isinstance(current_editor, SwitchableEditor):
+            # 确保当前是文本编辑模式
+            if current_editor.stack.currentWidget() != current_editor.text_editor:
+                QMessageBox.information(self, "提示", "请切换到文本编辑模式使用替换功能")
+                return
+                
             editor = current_editor.text_editor
             cursor = editor.textCursor()
             if cursor.hasSelection():
                 cursor.insertText(replace_with)
+                editor.setTextCursor(cursor)
     
     def replace_all_text(self, find_text, replace_with, case_sensitive):
         """替换所有文本"""
         current_editor = self.get_current_editor()
         if current_editor and isinstance(current_editor, SwitchableEditor):
+            # 确保当前是文本编辑模式
+            if current_editor.stack.currentWidget() != current_editor.text_editor:
+                QMessageBox.information(self, "提示", "请切换到文本编辑模式使用替换功能")
+                return
+                
             editor = current_editor.text_editor
             
-            # 保存当前光标位置
-            original_cursor = editor.textCursor()
+            # 开始编辑会话
+            cursor = editor.textCursor()
+            cursor.beginEditBlock()
             
-            # 移动到文档开始
-            cursor = QTextCursor(editor.document())
-            editor.setTextCursor(cursor)
-            
-            # 设置查找选项
-            options = QTextDocument.FindFlag()
-            if case_sensitive:
-                options |= QTextDocument.FindFlag.FindCaseSensitively
-            
-            # 计数器
-            count = 0
-            
-            # 开始替换
-            while editor.find(find_text, options):
-                cursor = editor.textCursor()
-                cursor.insertText(replace_with)
-                count += 1
-            
-            # 恢复原始光标位置
-            editor.setTextCursor(original_cursor)
-            
-            # 显示结果
-            QMessageBox.information(self, "替换完成", f"共替换了 {count} 处内容")
+            try:
+                # 保存当前光标位置
+                original_position = cursor.position()
+                
+                # 移动到文档开始
+                cursor.movePosition(QTextCursor.MoveOperation.Start)
+                editor.setTextCursor(cursor)
+                
+                # 设置查找选项
+                options = QTextDocument.FindFlags()
+                if case_sensitive:
+                    options |= QTextDocument.FindFlag.FindCaseSensitively
+                
+                # 计数器
+                count = 0
+                
+                # 开始替换
+                while editor.find(find_text, options):
+                    cursor = editor.textCursor()
+                    cursor.insertText(replace_with)
+                    count += 1
+                
+                # 恢复原始光标位置
+                cursor.setPosition(original_position)
+                editor.setTextCursor(cursor)
+                
+                # 结束编辑会话
+                cursor.endEditBlock()
+                
+                # 显示结果
+                QMessageBox.information(self, "替换完成", f"共替换了 {count} 处内容")
+                
+            except Exception as e:
+                cursor.endEditBlock()
+                QMessageBox.warning(self, "错误", f"替换过程中发生错误: {str(e)}")
     
     def change_theme(self):
         """切换主题"""
