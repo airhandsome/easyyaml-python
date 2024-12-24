@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QMainWindow, QToolBar, QMenuBar,
                              QDialog, QLabel, QLineEdit, QDialogButtonBox,
                              QPushButton, QHBoxLayout, QCompleter, QTreeWidget, QTreeWidgetItem,
                              QPlainTextEdit, QSplitter, QStackedWidget, QTextBrowser, QApplication)
-from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint, QSize
+from PyQt6.QtCore import Qt, QStringListModel, QTimer, QPoint, QSize, QSortFilterProxyModel
 from PyQt6.QtGui import QKeySequence, QShortcut, QAction, QImage, QPainter, QPen, QColor, QPolygon, QActionGroup, \
     QTextDocument, QTextCursor, QTextCharFormat, QIcon, QFont, QPalette
 import os
@@ -26,11 +26,6 @@ class SearchComboBox(QComboBox):
         # 设置占位符文本
         self.lineEdit().setPlaceholderText("搜索模板...")
         
-        # 使用定时器延迟搜索
-        self.search_timer = QTimer()
-        self.search_timer.setSingleShot(True)
-        self.search_timer.setInterval(300)  # 300ms 延迟
-        
         # 当文本改变时触发搜索
         self.lineEdit().textChanged.connect(self.on_text_changed)
         
@@ -39,10 +34,11 @@ class SearchComboBox(QComboBox):
     
     def on_text_changed(self, text):
         """当输入文本改变时"""
-        self.search_timer.stop()
-        if text:
-            self.search_timer.start()
-    
+        self.setEditable(True)
+        self.qsmodel = QSortFilterProxyModel(self)
+        self.qsmodel.setSourceModel(self.model())
+
+
     def focusInEvent(self, event):
         """当获得焦点时"""
         super().focusInEvent(event)
@@ -788,9 +784,6 @@ class MainWindow(QMainWindow):
         # 使用定时器延迟加载模板
         self.template_list = []
         QTimer.singleShot(0, self.load_templates)
-        
-        # 初始化搜索框
-        self.search_box.search_timer.timeout.connect(self.filter_templates)
         
         # 设置主题系统
         self.setup_themes()  # 后设置主题
